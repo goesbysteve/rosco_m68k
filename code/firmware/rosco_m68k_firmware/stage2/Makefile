@@ -65,6 +65,9 @@ include sdfat/include.mk
 ifeq ($(WITH_ATA), true)
 include idehdd/include.mk
 endif
+ifeq ($(WITH_FDC), true)
+include fdc/include.mk
+endif
 ifeq ($(HUGEROM), true)
 ifeq ($(ROMFS_SIZE), 320)
 DEFINES+=-DROMFS_BLOCKS=40
@@ -98,8 +101,10 @@ main2.o: main2.c
 common.o: common.c
 	$(CC) $(SIZE_CFLAGS) -c -o $@ $<
 
-$(ELF) : $(OBJECTS) $(LIBS)
-	$(LD) $(LDFLAGS) -Wl,-Map=$(MAP) $^ -o $@ -Wl,-R../stage1/stage1.elf -nostartfiles $(LIBS)
+STAGE1_ELF := ../stage1/stage1.elf
+
+$(ELF) : $(OBJECTS) $(LIBS) $(STAGE1_ELF)
+	$(LD) $(LDFLAGS) -Wl,-Map=$(MAP) $(OBJECTS) $(LIBS) -o $@ -Wl,-R$(STAGE1_ELF) -nostartfiles $(LIBS)
 	-chmod a-x $@
 
 $(BINARY) : $(ELF)

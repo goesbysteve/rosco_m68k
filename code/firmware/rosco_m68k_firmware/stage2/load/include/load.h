@@ -43,5 +43,9 @@ extern bool ide_load_kernel();
 // This is provided by the ROMFS/FAT loader
 extern bool romfs_load_kernel();
 #endif
+#ifdef FDC_PROBE
+// This is provided by the FDC probe
+extern bool fdc_probe_report(void);
+#endif
 
 #endif  //__ROSCO_M68K_LOAD_H

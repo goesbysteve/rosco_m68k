@@ -1,3 +1,4 @@
+CC := gcc
 CFLAGS=-I.. -Iunity -g
 LDFLAGS=
 
@@ -6,7 +7,7 @@ LDFLAGS=
 all: test
 
 clean:
-	rm -rf *.o test_parse_menu
+	rm -rf *.o unity/unity.o test_parse_menu
 
 %.o: ../%.c
 	$(CC) -c $(CFLAGS) -o $@ $<

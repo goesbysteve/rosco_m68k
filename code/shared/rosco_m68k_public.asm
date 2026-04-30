@@ -86,6 +86,9 @@ EFP_ATA_IDENT   equ     $48C
 EFP_PROG_EXIT   equ     $490
 EFP_INPUTCHAR   equ     $494
 EFP_CHECKINPUT  equ     $498
+EFP_FD_INIT     equ     $49C
+EFP_FD_READ     equ     $4A0
+EFP_FD_WRITE    equ     $4A4
 
   ifd REVISION1X
 ; MFP Location

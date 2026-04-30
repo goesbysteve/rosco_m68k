@@ -15,6 +15,11 @@ OBJECTS+=blockdev/ata_disable_interrupt.o blockdev/ata.o
 DEFINES+=-DROSCO_M68K_ATA
 endif
 
+ifeq ($(WITH_FDC),true)
+OBJECTS+=blockdev/fd.o
+DEFINES+=-DROSCO_M68K_FDC
+endif
+
 BD_EXTRA_CFLAGS=-O3
 
 blockdev/%.o: CFLAGS+=$(BD_EXTRA_CFLAGS)

@@ -25,7 +25,7 @@ TRAP_13_VECTOR_ADDR equ     TRAP_13_VECTOR*4
 ;
 ; NOTE: Trashes A0, and allowed to modify arguments.
 BLOCKDEV_TRAP_13_HANDLER:
-    cmp.l   #19,D0                      ; Is function code in range?
+    cmp.l   #23,D0                      ; Is function code in range?
     bhi.s   .NOT_IMPLEMENTED            ; Nope, leave...
 
     add.l   D0,D0                       ; Multiply FC...
@@ -54,6 +54,10 @@ BLOCKDEV_TRAP_13_HANDLER:
     dc.l    ATA_READ                    ; FC == 17
     dc.l    ATA_WRITE                   ; FC == 18
     dc.l    ATA_IDENTIFY                ; FC == 19
+    dc.l    CHECK_SUCCESS               ; FC == 20
+    dc.l    FD_INIT                     ; FC == 21
+    dc.l    FD_READ                     ; FC == 22
+    dc.l    FD_WRITE                    ; FC == 23
 .NOT_IMPLEMENTED:
     rte
 
@@ -148,6 +152,21 @@ ATA_WRITE:
 
 ATA_IDENTIFY:
     move.l  EFP_ATA_IDENT,A0
+    jsr     (A0)
+    rte
+
+FD_INIT:
+    move.l  EFP_FD_INIT,A0
+    jsr     (A0)
+    rte
+
+FD_READ:
+    move.l  EFP_FD_READ,A0
+    jsr     (A0)
+    rte
+
+FD_WRITE:
+    move.l  EFP_FD_WRITE,A0
     jsr     (A0)
     rte
 
@@ -418,6 +437,49 @@ FW_ATA_IDENT:
     endif
     rts
 
+; Arguments:
+;
+;  D1.L - 0 (Drive 0) or 1 (Drive 1)
+;  A1   - Pointer to an FDDrive struct
+;
+; Modifies:
+;
+;  D0.L - Return value
+FW_FD_INIT:
+    ifd ROSCO_M68K_FDC
+    move.l  A1,-(A7)
+    move.l  D1,-(A7)
+    jsr     FD_init
+    add.l   #8,A7
+    else
+    move.l  #1,D0
+    endif
+    rts
+
+FW_FD_READ:
+    ifd ROSCO_M68K_FDC
+    move.l  #FD_read_sectors,A0
+    bra.s   FD_XFER_OP
+    else
+    clr.l   D0
+    endif
+    rts
+
+FW_FD_WRITE:
+    ifd ROSCO_M68K_FDC
+    move.l  #FD_write_sectors,A0
+FD_XFER_OP:
+    move.l  A1,-(A7)
+    move.l  D2,-(A7)
+    move.l  D1,-(A7)
+    move.l  A2,-(A7)
+    jsr     (A0)
+    add.l   #16,A7
+    else
+    clr.l   D0
+    endif
+    rts
+
 * ************************************************************************** *
 * ************************************************************************** *
 ; Called to install the TRAP handlers; Trashes A0
@@ -444,6 +506,9 @@ INSTALL_BLOCKDEV_HANDLERS::
     move.l  #FW_ATA_READ,EFP_ATA_READ
     move.l  #FW_ATA_WRITE,EFP_ATA_WRITE
     move.l  #FW_ATA_IDENT,EFP_ATA_IDENT
+    move.l  #FW_FD_INIT,EFP_FD_INIT
+    move.l  #FW_FD_READ,EFP_FD_READ
+    move.l  #FW_FD_WRITE,EFP_FD_WRITE
 
     ; And done...
     rts

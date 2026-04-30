@@ -175,7 +175,7 @@ noreturn void lmain() {
 #endif
 
 #ifndef MAME_FIRMWARE
-#  if (defined SDFAT_LOADER) || (defined IDE_LOADER)
+#  if (defined SDFAT_LOADER) || (defined IDE_LOADER) || (defined FDC_PROBE)
     FW_PRINT_C("Searching for boot media...\r\n");
 #  endif
 
@@ -189,6 +189,9 @@ noreturn void lmain() {
         goto have_kernel;
     }
 #  endif
+#  ifdef FDC_PROBE
+    fdc_probe_report();
+#  endif
 #endif
 #  ifdef ROMFS_LOADER
     if (romfs_load_kernel()) {
@@ -196,7 +199,7 @@ noreturn void lmain() {
     }
 #  endif
 #ifndef MAME_FIRMWARE
-#  if (defined SDFAT_LOADER) || (defined IDE_LOADER)
+#  if (defined SDFAT_LOADER) || (defined IDE_LOADER) || (defined FDC_PROBE)
     FW_PRINT_C("No bootable media found\r\n");
 #  endif
 #  ifdef KERMIT_LOADER

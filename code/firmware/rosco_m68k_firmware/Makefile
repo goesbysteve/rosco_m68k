@@ -22,6 +22,7 @@ export WITH_BLOCKDEV?=true
 export WITH_KERMIT?=true
 export WITH_DEBUG_STUB?=true
 export WITH_ATA?=false
+export WITH_FDC?=false
 export WITH_VDP?=false
 export NO68681?=false
 export XOSERA_API_MINIMAL?=true
