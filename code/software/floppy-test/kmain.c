@@ -12,58 +12,8 @@
 #define FDC_DOR_ADDR    ((volatile uint8_t *)0x00F800CEU)
 #define FDC_DCRDY_ADDR  ((volatile uint8_t *)0x00F800D0U)
 
-/* ROM firmware BSS addresses (stage1.elf WITH_FDC=true, stable across driver edits) */
-#define FW_FST_RC       ((volatile uint8_t  *)0x00001843U)
-#define FW_FRB_LEN      ((volatile uint8_t  *)0x00001845U)
-#define FW_FRB_ST0      ((volatile uint8_t  *)0x00001846U)
-#define FW_FRB_ST1      ((volatile uint8_t  *)0x00001847U)
-#define FW_FRB_ST2      ((volatile uint8_t  *)0x00001848U)
-#define FW_FRB_C        ((volatile uint8_t  *)0x00001849U)
-#define FW_FRB_H        ((volatile uint8_t  *)0x0000184AU)
-#define FW_FRB_R        ((volatile uint8_t  *)0x0000184BU)
-#define FW_FRB_N        ((volatile uint8_t  *)0x0000184CU)
-#define FW_FCD_W_SECSZ  ((volatile uint16_t *)0x00001856U)
-#define FW_FD_DSKBUF    ((volatile uint32_t *)0x00001864U)
-#define FW_FXR_WR_COUNT ((volatile uint32_t *)0x0000186AU)
-
 /* Register initialisation values */
 #define FDC_DOR_INIT    0x0CU
-
-static void dump_fdc_state(void) {
-    uint8_t rc  = *FW_FST_RC;
-    uint8_t len = *FW_FRB_LEN;
-    printf("  FST_RC=$%02X  FRB_LEN=%u  FCD_W_SECSZ=%u  FD_DSKBUF=$%08lX\r\n",
-           (unsigned)rc, (unsigned)len,
-           (unsigned)*FW_FCD_W_SECSZ,
-           (unsigned long)*FW_FD_DSKBUF);
-    if (len >= 1U) {
-        uint8_t st0 = *FW_FRB_ST0;
-        printf("  ST0=$%02X  IC=%u HD=%u DS=%u\r\n",
-               (unsigned)st0,
-               (unsigned)((st0 >> 6) & 0x3U),
-               (unsigned)((st0 >> 2) & 0x1U),
-               (unsigned)( st0       & 0x3U));
-    }
-    if (len >= 2U) {
-        uint8_t st1 = *FW_FRB_ST1;
-        printf("  ST1=$%02X  EN=%u DE=%u OR=%u ND=%u NW=%u MA=%u\r\n",
-               (unsigned)st1,
-               (unsigned)((st1 >> 7) & 1U),
-               (unsigned)((st1 >> 5) & 1U),
-               (unsigned)((st1 >> 4) & 1U),
-               (unsigned)((st1 >> 2) & 1U),
-               (unsigned)((st1 >> 1) & 1U),
-               (unsigned)( st1       & 1U));
-    }
-    if (len >= 3U)
-        printf("  ST2=$%02X\r\n", (unsigned)*FW_FRB_ST2);
-    if (len >= 7U)
-        printf("  C=%u H=%u R=%u N=%u\r\n",
-               (unsigned)*FW_FRB_C,
-               (unsigned)*FW_FRB_H,
-               (unsigned)*FW_FRB_R,
-               (unsigned)*FW_FRB_N);
-}
 
 static uint8_t sector_buf[512];
 static uint8_t sector_buf2[512];
@@ -106,11 +56,35 @@ void kmain(void) {
             printf("  WARN: DC/RDY low -- drive not ready\r\n");
     }
 
+    printf("\r\nStep 3: FD_media_detect()...\r\n");
+    printf("  (READID-based probe -- keep disk inserted)\r\n");
+    {
+        int32_t mtype = FD_media_detect(&dev);
+        if (mtype < 0) {
+            printf("  FAIL: no media detected (rc=%ld)\r\n", (long)mtype);
+            goto done;
+        }
+        printf("  detected: %s (media_type=%ld)\r\n",
+               mtype == FDM720 ? "720K" :
+               mtype == FDM144 ? "1.44M" : "unknown",
+               (long)mtype);
+        printf("  dev.media_type=%u  dev.flags=$%02X (fdcrdy=%d -- 0 is normal after detect)\r\n",
+               (unsigned)dev.media_type,
+               (unsigned)dev.flags, (int)(dev.flags & 1U));
+    }
+
+    printf("\r\nStep 4: FD_geom()...\r\n");
+    {
+        uint32_t geom = FD_geom(&dev);
+        printf("  raw=$%08lX  cyls=%lu heads=%lu secs=%lu\r\n",
+               (unsigned long)geom,
+               (unsigned long)FD_GEOM_CYLS(geom),
+               (unsigned long)FD_GEOM_HEADS(geom),
+               (unsigned long)FD_GEOM_SECS(geom));
+    }
+
     printf("\r\n=== Floppy Phase 2 ===\r\n\r\n");
-    printf("Step 3: FD_read_sectors(LBA=0, count=1)...\r\n");
-    printf("  media_type=%u (%s)\r\n",
-           (unsigned)dev.media_type,
-           dev.media_type == 0U ? "720K" : "1.44M");
+    printf("Step 5: FD_read_sectors(LBA=0, count=1)...\r\n");
     printf("  (motor on / RECAL / READ -- no output until done)\r\n");
 
     uint32_t nread = FD_read_sectors(sector_buf, 0U, 1U, &dev);
@@ -137,40 +111,9 @@ void kmain(void) {
         printf("\r\n");
     }
 
-    printf("\r\nStep 4: re-read LBA 0 for consistency check...\r\n");
-
-    uint32_t nread2 = FD_read_sectors(sector_buf2, 0U, 1U, &dev);
-
-    printf("  returned %lu sector(s)  fdcrdy=%d\r\n",
-           (unsigned long)nread2, (int)(dev.flags & 1U));
-
-    if (nread2 != 1U) {
-        printf("  FAIL\r\n");
-        goto done;
-    }
-
-    {
-        uint32_t mismatches = 0U;
-        for (uint32_t i = 0U; i < 512U; i++) {
-            if (sector_buf[i] != sector_buf2[i]) {
-                if (mismatches < 8U) {
-                    printf("  MISMATCH @ $%03lX: $%02X vs $%02X\r\n",
-                           (unsigned long)i,
-                           (unsigned)sector_buf[i],
-                           (unsigned)sector_buf2[i]);
-                }
-                mismatches++;
-            }
-        }
-        if (mismatches == 0U)
-            printf("  Both reads identical -- 512/512 bytes match.\r\n");
-        else
-            printf("  FAIL: %lu byte(s) differ.\r\n", (unsigned long)mismatches);
-    }
-
     printf("\r\n=== Floppy Phase 3 ===\r\n\r\n");
 
-    printf("Step 5a: pre-write read of LBA 5...\r\n");
+    printf("Step 7a: pre-write read of LBA 5...\r\n");
     printf("  (READ in progress)\r\n");
 
     uint32_t npre = FD_read_sectors(sector_buf2, 5U, 1U, &dev);
@@ -188,7 +131,7 @@ void kmain(void) {
 
     for (uint32_t i = 0U; i < 512U; i++)
         sector_buf[i] = (uint8_t)(i & 0xFFU);
-    printf("\r\nStep 5: FD_write_sectors(LBA=5, count=1)...\r\n");
+    printf("\r\nStep 7: FD_write_sectors(LBA=5, count=1)...\r\n");
     printf("  Scratch pattern: sector_buf[i] = i & 0xFF (0x00..0xFF repeating)\r\n");
     printf("  WARNING: LBA 5 on the inserted disk will be overwritten.\r\n");
     printf("  (WRITE in progress -- no output until done)\r\n");
@@ -198,8 +141,6 @@ void kmain(void) {
     printf("  returned %lu sector(s)  fdcrdy=%d  track=%u\r\n",
            (unsigned long)nwritten, (int)(dev.flags & 1U),
            (unsigned)dev.current_track);
-    dump_fdc_state();
-    printf("  FXR_WR_COUNT=%lu\r\n", (unsigned long)*FW_FXR_WR_COUNT);
 
     if (nwritten != 1U) {
         printf("  FAIL\r\n");
@@ -207,14 +148,13 @@ void kmain(void) {
     }
     printf("  Write ok.\r\n\r\n");
 
-    printf("Step 6: FD_read_sectors(LBA=5, count=1) read-back...\r\n");
+    printf("Step 8: FD_read_sectors(LBA=5, count=1) read-back...\r\n");
     printf("  (READ in progress -- no output until done)\r\n");
 
     uint32_t nverify = FD_read_sectors(sector_buf2, 5U, 1U, &dev);
 
     printf("  returned %lu sector(s)  fdcrdy=%d\r\n",
            (unsigned long)nverify, (int)(dev.flags & 1U));
-    dump_fdc_state();
 
     if (nverify != 1U) {
         printf("  FAIL\r\n");
@@ -229,7 +169,7 @@ void kmain(void) {
         printf("\r\n");
     }
 
-    printf("\r\nStep 7: comparing write pattern vs read-back...\r\n");
+    printf("\r\nStep 9: comparing write pattern vs read-back...\r\n");
     {
         uint32_t mismatches2 = 0U;
         for (uint32_t i = 0U; i < 512U; i++) {
@@ -248,6 +188,7 @@ void kmain(void) {
         else
             printf("  FAIL: %lu byte(s) differ.\r\n", (unsigned long)mismatches2);
     }
+
 
 done:
     *FDC_DOR_ADDR = FDC_DOR_INIT;

@@ -45,3 +45,21 @@ FD_write_sectors::
     trap    #13
     movem.l (A7)+,A0-A2/D1-D2
     rts
+
+; uint32_t FD_geom(FDDevice *dev)
+FD_geom::
+    movem.l A0-A1,-(A7)
+    move.l  (12,A7),A1
+    move.l  #24,D0
+    trap    #13
+    movem.l (A7)+,A0-A1
+    rts
+
+; int32_t FD_media_detect(FDDevice *dev)
+FD_media_detect::
+    movem.l A0-A1,-(A7)
+    move.l  (12,A7),A1
+    move.l  #25,D0
+    trap    #13
+    movem.l (A7)+,A0-A1
+    rts

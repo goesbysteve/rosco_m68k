@@ -25,7 +25,7 @@ TRAP_13_VECTOR_ADDR equ     TRAP_13_VECTOR*4
 ;
 ; NOTE: Trashes A0, and allowed to modify arguments.
 BLOCKDEV_TRAP_13_HANDLER:
-    cmp.l   #23,D0                      ; Is function code in range?
+    cmp.l   #25,D0                      ; Is function code in range?
     bhi.s   .NOT_IMPLEMENTED            ; Nope, leave...
 
     add.l   D0,D0                       ; Multiply FC...
@@ -58,6 +58,8 @@ BLOCKDEV_TRAP_13_HANDLER:
     dc.l    FD_INIT                     ; FC == 21
     dc.l    FD_READ                     ; FC == 22
     dc.l    FD_WRITE                    ; FC == 23
+    dc.l    FD_GEOM                     ; FC == 24
+    dc.l    FD_MEDIA                    ; FC == 25
 .NOT_IMPLEMENTED:
     rte
 
@@ -170,6 +172,16 @@ FD_WRITE:
     jsr     (A0)
     rte
 
+FD_GEOM:
+    move.l  EFP_FD_GEOM,A0
+    jsr     (A0)
+    rte
+
+FD_MEDIA:
+    move.l  EFP_FD_MEDIA,A0
+    jsr     (A0)
+    rte
+
 * ************************************************************************** *
 * ************************************************************************** *
 ; EFP default handlers
@@ -244,7 +256,7 @@ FW_SPI_ASSERT_CS:
     move.l  #BBSPI_assert_cs0,A0
     move.l  #BBSPI_assert_cs1,A1
     bra.s   SPI_ASSERT_OP
-    
+
 ; Arguments:
 ;   D1  - Device number (0 or 1)
 ;
@@ -258,7 +270,7 @@ SPI_ASSERT_OP:
     beq.s   .DEV0
     cmp.l   #1,D1
     beq.s   .DEV1
-    
+
     ; else error
     move.l  #0,D0
     rts
@@ -269,7 +281,7 @@ SPI_ASSERT_OP:
 
 .DEV1:
     jsr     (A1)
-    
+
 .SUCCESS
     move.l  #1,D0
     rts
@@ -480,6 +492,42 @@ FD_XFER_OP:
     endif
     rts
 
+; Arguments:
+;
+;  D0.L - 24 (Function code)
+;  A1   - Pointer to an initialized FDDevice struct
+;
+; Modifies:
+;
+;  D0.L - (NUMCYL<<16) | (NUMHD<<8) | NUMSEC
+FW_FD_GEOM:
+    ifd ROSCO_M68K_FDC
+    move.l  A1,-(A7)
+    jsr     FD_geom
+    addq.l  #4,A7
+    else
+    move.l  #-1,D0
+    endif
+    rts
+
+; Arguments:
+;
+;  D0.L - 25 (Function code)
+;  A1   - Pointer to an initialized FDDevice struct
+;
+; Modifies:
+;
+;  D0.L - FDM144 (1) or FDM720 (0) on success, FRC_NODATA on failure
+FW_FD_MEDIA:
+    ifd ROSCO_M68K_FDC
+    move.l  A1,-(A7)
+    jsr     FD_media_detect
+    addq.l  #4,A7
+    else
+    move.l  #-1,D0
+    endif
+    rts
+
 * ************************************************************************** *
 * ************************************************************************** *
 ; Called to install the TRAP handlers; Trashes A0
@@ -509,6 +557,8 @@ INSTALL_BLOCKDEV_HANDLERS::
     move.l  #FW_FD_INIT,EFP_FD_INIT
     move.l  #FW_FD_READ,EFP_FD_READ
     move.l  #FW_FD_WRITE,EFP_FD_WRITE
+    move.l  #FW_FD_GEOM,EFP_FD_GEOM
+    move.l  #FW_FD_MEDIA,EFP_FD_MEDIA
 
     ; And done...
     rts

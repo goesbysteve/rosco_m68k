@@ -32,8 +32,7 @@
 ;------------------------------------------------------------
 
                 include "../../../shared/rosco_m68k_public.asm"
-
-    ifd ROSCO_M68K_FDC
+                include "fd_config.inc"
 
 ; ============================================================
 ; Hardware register addresses
@@ -68,6 +67,10 @@ DOR_INIT        equ     DOR_NRESET|DOR_DMAEN    ; $0C
 CFD_READ        equ     $06
 CFD_WRITE       equ     $05
 CFD_READID      equ     $0A
+
+DOP_READ        equ     0
+DOP_WRITE       equ     1
+DOP_READID      equ     3
 CFD_RECAL       equ     $07
 CFD_SENSEINT    equ     $08
 CFD_SPECIFY     equ     $03
@@ -116,18 +119,34 @@ FCD_N           equ     2
 FCD_DTL         equ     $FF
 
 ; ============================================================
-; Motor spinup: 500ms at 10MHz
-; SUBQ.L + BNE.S = ~10 cycles = 1us each
-; 500ms / 1us = 500000 iterations
-; ============================================================
-MOTOR_SPINUP    equ     500000
+; Time-based delay constants -- all derived from FD_CPU_MHZ
+; (set in fd_config.inc, default 10).
+;
+; FDC_DELAY inner loop: DBRA, ~4 cycles/iter effective with ROM
+; wait states.  Target ~12us.  count = 3*MHz - 1 = 29 @ 10MHz.
+FDC_DELAY_COUNT equ     (3*FD_CPU_MHZ)-1
+;
+; Motor spinup: 500ms. SUBQ.L+BNE.S ~10 cycles/iter = 1us @ 10MHz.
+MOTOR_SPINUP    equ     (500000*FD_CPU_MHZ/10)
+;
+; FC_RESETFDC: DOR reset pulse width ~2ms (minimum is nanoseconds; 2ms is ample).
+FDC_RESET_WIDTH equ     (2000*FD_CPU_MHZ/10)
+;
+; FC_RESETFDC: post-reset FDC settling ~4ms (spec ~1.5ms; 4ms is safe).
+FDC_RESET_SETTLE equ    (4000*FD_CPU_MHZ/10)
+;
+; FC_MOTORON: CCR (data-rate) PLL settle ~15ms (VCO typically locks in 1-5ms).
+FDC_CCR_SETTLE  equ     (15000*FD_CPU_MHZ/10)
 
 ; ============================================================
 ; Timeout loop counts (fd.asm patterns)
 ; B = 256 inner iterations for MSR poll
 ; Outer loops match fd.asm $1000 for FD_WTSEEK
 ; ============================================================
-WTSEEK_OUTER    equ     $1000
+; FD_WTSEEK poll budget: must cover worst-case RECAL (80 tracks, SRT=13 -> 3ms/step)
+; 80 x 3ms = 240ms. FDC_DELAY ~12us per iteration (constant regardless of MHz).
+; 240ms / 12us = 20000; use 25000 for margin.
+WTSEEK_OUTER    equ     25000
 
 ; ============================================================
 ; section .rodata -- media configuration ROM tables
@@ -138,12 +157,14 @@ WTSEEK_OUTER    equ     $1000
 
                 section .rodata
 
-; FCD_TBL -- indexed by media type (0=720K, 1=1.44M)
+; FCD_TBL -- indexed by media type (0=720K, 1=1.44M, 2=360K, 3=1.2M)
 ; Each entry is 4 bytes: dc.l address
 ; Accessed as: RLCA/RLCA in fd.asm -> A = media*4 -> index FCD_TBL
 FCD_TBL:
                 dc.l    FCD_PC720
                 dc.l    FCD_PC144
+                dc.l    FCD_PC360
+                dc.l    FCD_PC120
 
 ; 720K 3.5" DS/DD  250Kbps (CCR=01)
 ; fd.asm FCD_PC720:
@@ -185,6 +206,46 @@ FCD_PC144:
                 dc.b    DOR_INIT    ; DOR value
                 dc.b    $00         ; DCR (CCR) value: 500Kbps
 
+; 360K 5.25" DS/DD  250Kbps (CCR=01)
+; FCD_PC360:
+;   SOT=1, NUMSEC=SC=9, SECSZ=512, GPL=0x2A, GPLF=0x50
+;   SRTHUT=(13<<4)|0=0xD0, HLTND=(4<<1)|1=0x09
+;   DOR=DOR_INIT=$0C, DCR=0x01 (250K)
+FCD_PC360:
+                dc.b    40          ; NUMCYL
+                dc.b    2           ; NUMHD
+                dc.b    9           ; NUMSEC
+                dc.b    1           ; SOT
+                dc.b    9           ; SC
+                dc.b    0           ; pad
+                dc.w    512         ; SECSZ
+                dc.b    $2A         ; GPL
+                dc.b    $50         ; GPLF
+                dc.b    $D0         ; SRTHUT: SRT=(13<<4)|HUT=0
+                dc.b    $09         ; HLTND: HLT=(4<<1)|ND=1
+                dc.b    DOR_INIT    ; DOR value
+                dc.b    $01         ; DCR (CCR) value: 250Kbps
+
+; 1.2M 5.25" DS/HD  500Kbps (CCR=00)
+; FCD_PC120:
+;   NUMSEC=SC=15, GPL=0x1B, GPLF=0x54
+;   SRTHUT=(10<<4)|0=0xA0, HLTND=(8<<1)|1=0x11
+;   DOR=DOR_INIT=$0C, DCR=0x00 (500K)
+FCD_PC120:
+                dc.b    80          ; NUMCYL
+                dc.b    2           ; NUMHD
+                dc.b    15          ; NUMSEC
+                dc.b    1           ; SOT
+                dc.b    15          ; SC
+                dc.b    0           ; pad
+                dc.w    512         ; SECSZ
+                dc.b    $1B         ; GPL
+                dc.b    $54         ; GPLF
+                dc.b    $A0         ; SRTHUT: SRT=(10<<4)|HUT=0
+                dc.b    $11         ; HLTND: HLT=(8<<1)|ND=1
+                dc.b    DOR_INIT    ; DOR value
+                dc.b    $00         ; DCR (CCR) value: 500Kbps
+
 ; FCD_LEN must be 14 -- checked implicitly by layout
 
 ; ============================================================
@@ -207,7 +268,7 @@ FCD_LEN         equ     14
 
 ; ============================================================
 ; section .bss -- driver working state
-; All transient/working state is global (matches fd.asm style)
+; All transient/working state is global
 ; Per-unit persistent state is in the caller-allocated FDDevice struct
 ; ============================================================
 
@@ -269,7 +330,7 @@ FCD_DS:         ds.b    1           ; drive select (0 or 1)
 FCD_C_PARAM:    ds.b    1           ; cylinder parameter
 FCD_H_PARAM:    ds.b    1           ; head parameter
 FCD_R_PARAM:    ds.b    1           ; record (sector) parameter
-FCD_DOP:        ds.b    1           ; current operation: 0=read,1=write
+FCD_DOP:        ds.b    1           ; current operation: 0=read,1=write,3=readid
 
 ; ----- Disk buffer pointer (fd.asm FD_DSKBUF) ---
 FD_DSKBUF:      ds.l    1           ; pointer to sector data buffer
@@ -288,40 +349,43 @@ FXR_WR_COUNT:   ds.l    1
 
 ;------------------------------------------------------------
 ; Delay ~12us between MSR reads (fd.asm DELAY macro).
-; At 10MHz with ROM wait-states ~12 NOPs ≈ 12us.
-; Trashes nothing (D0 is not used here; called via BSR).
-; We use a local DBRA loop that burns exactly the time needed.
+; Loop count = FDC_DELAY_COUNT = 3*FD_CPU_MHZ-1 (29 @ 10MHz).
+; Trashes nothing (D0 saved/restored).
 ;------------------------------------------------------------
 FDC_DELAY:
-                ; ~12us @ 10MHz: 30 iterations x 4 cycles = 120 cycles = 12us
                 move.l  D0,-(sp)
-                move.w  #29,D0
+                move.w  #FDC_DELAY_COUNT,D0
 .dly:           dbra    D0,.dly
                 move.l  (sp)+,D0
                 rts
 
 ;------------------------------------------------------------
 ; FC_RESETFDC -- hardware reset
-; fd.asm FC_RESETFDC: write 0 to DOR, VDELAY 150x16us=2.4ms,
-; then restore DOR_INIT.
+; Pulses DOR reset low then restores the previous DOR value,
+; preserving motor state across probe attempts.
 ; Trashes D0.
 ;------------------------------------------------------------
 FC_RESETFDC:
+                ; Save current DOR (including motor-on bits) on stack
+                move.b  FST_DOR,D0
+                move.l  D0,-(sp)
+
                 ; Assert reset: write 0x00 to DOR
                 clr.b   FST_DOR
                 move.b  #0,$F800CE
 
-                ; 2.5ms delay: 25000 x 10 cycles @ 10MHz = 25ms margin
-                move.l  #25000,D0
+                ; Reset pulse width ~2ms (FDC_RESET_WIDTH)
+                move.l  #FDC_RESET_WIDTH,D0
 .rst_dly:       subq.l  #1,D0
                 bne.s   .rst_dly
 
-                ; Deassert reset: restore DOR_INIT
-                move.b  #DOR_INIT,FST_DOR
-                move.b  #DOR_INIT,$F800CE
+                ; Deassert reset: restore PREVIOUS DOR (motor state preserved)
+                move.l  (sp)+,D0
+                move.b  D0,FST_DOR
+                move.b  D0,$F800CE
 
-                ; Additional 2.4ms settling (fd.asm VDELAY 150)
-                move.l  #24000,D0
+                ; Post-reset FDC settling ~4ms (FDC_RESET_SETTLE)
+                move.l  #FDC_RESET_SETTLE,D0
 .rst_dly2:      subq.l  #1,D0
                 bne.s   .rst_dly2
 
@@ -348,6 +412,16 @@ FC_MOTORON:
                 move.b  FCD_W_DCR,D0
                 move.b  D0,$F800C8
 
+                ; PLL settle delay after CCR rate change (~15ms, FDC_CCR_SETTLE).
+                ; The WD37C65 data separator needs time to switch bit-cell
+                ; windows; without this the first command at the new rate
+                ; can time out or mis-clock on the first probe attempt.
+                movem.l D0,-(sp)
+                move.l  #FDC_CCR_SETTLE,D0
+.moton_ccr_dly: subq.l  #1,D0
+                bne.s   .moton_ccr_dly
+                movem.l (sp)+,D0
+
                 ; Build new DOR: DOR_INIT | motor bit | drive select
                 move.b  #DOR_INIT,D1        ; base: NRESET|DMAEN
                 move.b  FCD_DS,D0           ; drive select (0 or 1)
@@ -372,7 +446,7 @@ FC_MOTORON:
                 move.b  D1,FST_DOR
                 move.b  D1,$F800CE
 
-                ; 500ms spinup delay (fd.asm LDELAY, ~500ms)
+                ; 500ms spinup delay (MOTOR_SPINUP)
                 move.l  #MOTOR_SPINUP,D0
 .spinup:        subq.l  #1,D0
                 bne.s   .spinup
@@ -586,16 +660,10 @@ FOP_RES0:
 FOP_RES1:
                 bsr     FDC_DELAY
                 move.b  $F800CA,D0          ; MSR
-                and.b   #$F0,D0
-                cmp.b   #$D0,D0             ; RQM|DIO|CB -- result byte ready
+                and.b   #$C0,D0             ; mask to RQM|DIO only
+                cmp.b   #$C0,D0             ; RQM=1,DIO=1 -- result byte ready (CB=1 or CB=0)
                 beq.s   FOP_RES2
-                cmp.b   #$80,D0             ; RQM=1,DIO=0 -- done (MSR exact byte check)
-                beq.s   FOP_EVAL
-                ; also stop if full $C0 (RQM|DIO, CB=0) -- FDC idle
-                ; re-read without mask for this check
-                move.b  $F800CA,D0
-                and.b   #$C0,D0
-                cmp.b   #$80,D0
+                cmp.b   #$80,D0             ; RQM=1,DIO=0 -- done, no more result bytes
                 beq.s   FOP_EVAL
                 dbra    D1,FOP_RES1
                 move.b  #FRC_TOGETRES,FST_RC
@@ -940,6 +1008,19 @@ FC_WRITE:
                 bra     FOP
 
 ;============================================================
+; FC_READID -- send READ ID command (fd.asm FC_READID)
+; CFD_READID ($0A) | $40 (MFM) = $4A.
+; 2-byte command: [cmd, HDS|DS]. No data-transfer phase (FXR_NULL).
+; Result: 7 bytes (ST0, ST1, ST2, C, H, R, N).
+; FST_RC=0 means a valid address mark was found at the current data rate.
+; Used by FD_media_detect to identify media type without a data buffer.
+;============================================================
+FC_READID:
+                move.b  #CFD_READID|$40,D0  ; MFM bit; FC_SETUPCMD strips MT/SK
+                bsr     FC_SETUPCMD          ; 2-byte cmd: [CFD_READID|$40, HDS|DS]
+                bra     FOP
+
+;============================================================
 ; FD_CLRDSKCHG -- drain IC=3 poll interrupts (fd.asm FD_CLRDSKCHG)
 ; Call SENSEINT up to 5 times; stop when FST_RC != FRC_DSKCHG.
 ; Trashes D0.
@@ -1104,11 +1185,17 @@ FD_START:
                 move.b  D0,FDD_TRACK(A1)
 
 .st_dispatch:
-                ; Dispatch READ or WRITE
+                ; Dispatch READ, WRITE, or READID
                 move.b  FCD_DOP,D0
+                cmp.b   #DOP_READID,D0
+                beq.s   .st_do_readid
                 tst.b   D0
                 beq.s   .st_do_read
                 bsr     FC_WRITE
+                bra.s   .st_check_rc
+
+.st_do_readid:
+                bsr     FC_READID
                 bra.s   .st_check_rc
 
 .st_do_read:
@@ -1216,7 +1303,7 @@ FD_init::
 ;============================================================
 FD_read_sectors::
                 movem.l D1-D7/A0-A6,-(sp)
-                move.b  #0,FCD_DOP          ; DOP_READ = 0
+                move.b  #DOP_READ,FCD_DOP
                 bsr     FD_XFER
                 movem.l (sp)+,D1-D7/A0-A6
                 ; D0 = count set by FD_XFER
@@ -1229,7 +1316,7 @@ FD_read_sectors::
 ;============================================================
 FD_write_sectors::
                 movem.l D1-D7/A0-A6,-(sp)
-                move.b  #1,FCD_DOP          ; DOP_WRITE = 1
+                move.b  #DOP_WRITE,FCD_DOP
                 bsr     FD_XFER
                 movem.l (sp)+,D1-D7/A0-A6
                 rts
@@ -1318,4 +1405,143 @@ FD_XFER:
                 movem.l (sp)+,D1-D6/A1-A3
                 rts
 
-    endc        ; ROSCO_M68K_FDC
+;============================================================
+; FD_geom -- return geometry for current media type (TRAP13 FC=24)
+; Input:  A1 = FDDevice*
+; Output: D0 = (NUMCYL<<16) | (NUMHD<<8) | NUMSEC
+;         Unpack with FD_GEOM_CYLS/HEADS/SECS macros in fd.h
+; Pure ROM table lookup -- no FDC commands issued.
+;============================================================
+FD_geom::
+                movem.l A0,-(sp)
+
+                move.b  FDD_MEDIA(A1),D0
+                ext.w   D0
+                ext.l   D0
+                lsl.l   #2,D0               ; *4 -> FCD_TBL index
+                lea.l   FCD_TBL,A0
+                move.l  (A0,D0.l),A0        ; A0 = ROM media config block
+
+                ; Pack D0 = (NUMCYL<<16) | (NUMHD<<8) | NUMSEC
+                clr.l   D0
+                move.b  FCD_NUMCYL(A0),D0
+                lsl.l   #8,D0
+                move.b  FCD_NUMHD(A0),D0
+                lsl.l   #8,D0
+                move.b  FCD_NUMSEC(A0),D0
+
+                movem.l (sp)+,A0
+                rts
+
+;============================================================
+; FD_media_detect -- detect media via READID command (TRAP13 FC=25)
+; Input:  A1 = FDDevice* (FDD_UNIT must be set)
+; Output: D0 = FDM144 or FDM720 on success,
+;              FRC_NODATA (-14) if no disk or FDC not responding.
+;         On success: FDD_MEDIA, FDD_TRACK, FDD_FLAGS updated.
+;
+; Controlled by fd_config.inc:
+;   FD_MEDIA_AUTO=1 (default): READID probe at both data rates
+;   FD_MEDIA_AUTO=0:           report FD_MEDIA_PRIMARY immediately
+;   FD_MEDIA_PRIMARY/ALT:      which type to probe first/second
+;============================================================
+FD_media_detect::
+    ifne FD_MEDIA_AUTO
+                movem.l D1-D3/A0-A3,-(sp)  ; D3 = retry counter
+                move.l  A1,A3               ; A3 = FDDevice* (preserved)
+
+                ; Drive select + head 0 for READID command byte
+                move.b  FDD_UNIT(A3),D0
+                move.b  D0,FCD_DS
+                clr.b   FCD_H_PARAM
+
+                ; Retry loop: 5 attempts
+                moveq.l #4,D3               ; DBRA 4..0 = 5 attempts
+
+.probe_retry:
+                ; --- Try FD_MEDIA_PRIMARY ---
+                moveq.l #FD_MEDIA_PRIMARY,D2  ; D2 = media type being tried
+                bsr     .do_probe
+                tst.l   D0
+                bpl.s   .md_ok
+
+                ; --- Try FD_MEDIA_ALT ---
+                moveq.l #FD_MEDIA_ALT,D2
+                bsr     .do_probe
+                tst.l   D0
+                bpl.s   .md_ok
+
+                ; Both failed this attempt -- retry
+                dbra    D3,.probe_retry
+
+                ; All retries exhausted
+                bsr     FC_MOTOROFF
+                and.b   #$FE,FDD_FLAGS(A3)  ; clear FDD_FLAG_FDCRDY
+                move.l  #FRC_NODATA,D0
+                bra.s   .md_done
+
+.md_ok:
+                ; D2 = successful media type; D0 already = D2 (set by .do_probe)
+                move.b  D2,FDD_MEDIA(A3)
+                ; Leave fdcrdy=0 so FD_START runs a clean reset before the
+                ; first real read -- the probe may have left the FDC at a
+                ; different data rate than the confirmed media type requires.
+                and.b   #$FE,FDD_FLAGS(A3)  ; ensure fdcrdy=0
+                move.b  #$FF,FDD_TRACK(A3)  ; force RECAL on first operation
+                bra.s   .md_done
+
+; .do_probe -- attempt a READID at the data rate for media type in D2.
+; FD_START handles motor-on, SPECIFY, RECAL and the READID command.
+; READID (CFD_READID $0A) sends a 2-byte command, has no data-transfer
+; phase (FXR_NULL), and returns 7 result bytes: ST0,ST1,ST2,C,H,R,N.
+; FST_RC=0 means the FDC found a valid address mark at this data rate.
+; The probe order (FDM144 first) is the discriminator.
+; Returns D0 = D2 (media type) on success, D0 = FRC_NODATA on failure.
+; Trashes D0. D2 and A3 preserved by outer movem.l.
+.do_probe:
+                ; Clear fdcrdy so FD_START runs a full reset sequence
+                ; (FC_RESETFDC + FD_CLRDSKCHG + SPECIFY + RECAL) for each probe.
+                and.b   #$FE,FDD_FLAGS(A3)  ; clear FDD_FLAG_FDCRDY
+
+                ; Tell FD_START which media config (data rate) to load
+                move.b  D2,FDD_MEDIA(A3)
+
+                ; Force track unknown so FD_START always runs SPECIFY+RECAL
+                move.b  #$FF,FDD_TRACK(A3)
+
+                ; READID operates on whichever track the head is on after RECAL
+                ; (cylinder 0, head 0).  No CHS parameters needed.
+                move.b  #DOP_READID,FCD_DOP
+
+                ; FD_START: motor-on, SPECIFY+RECAL, READID.
+                ; FOP_CMD1 uses D2 as its command-byte countdown and leaves it
+                ; at 0 on return, so preserve D2 across the call.
+                move.l  A3,A1
+                move.l  D2,-(sp)
+                bsr     FD_START
+                move.l  (sp)+,D2
+                tst.l   D0
+                bne.s   .dp_fail
+
+                tst.b   FST_RC
+                bne.s   .dp_fail
+
+                move.l  D2,D0               ; return media type
+                rts
+
+.dp_fail:       move.l  #FRC_NODATA,D0
+                rts
+
+.md_done:
+                movem.l (sp)+,D1-D3/A0-A3
+                rts
+
+    else
+                ; FD_MEDIA_AUTO=0: no hardware probe, use compile-time primary
+                move.b  #FD_MEDIA_PRIMARY,FDD_MEDIA(A1)
+                or.b    #FDD_FLAG_FDCRDY,FDD_FLAGS(A1)
+                moveq.l #FD_MEDIA_PRIMARY,D0
+                rts
+    endc
+
+

@@ -28,12 +28,14 @@
 typedef struct {
     uint8_t unit;          /* 0 or 1                               */
     uint8_t current_track; /* 0xFF = unknown/needs recal           */
-    uint8_t media_type;    /* 0 = 720K, 1 = 1.44M                 */
+    uint8_t media_type;    /* FDM720/FDM144/FDM360/FDM120          */
     uint8_t flags;         /* bit0 = fdcrdy                        */
 } FDDevice;
 
-#define FD_MEDIA_720K    0U
-#define FD_MEDIA_1440K   1U
+#define FDM720           0U    /* 3.5"  DS/DD  720 KB  250 Kbps */
+#define FDM144           1U    /* 3.5"  DS/HD 1.44 MB  500 Kbps */
+#define FDM360           2U    /* 5.25" DS/DD  360 KB  250 Kbps */
+#define FDM120           3U    /* 5.25" DS/HD  1.2 MB  500 Kbps */
 
 #define FDD_FLAG_FDCRDY  0x01U
 
@@ -66,5 +68,14 @@ uint32_t FD_init(uint32_t drive, FDDevice *dev);
 uint32_t FD_read_sectors(uint8_t *buf, uint32_t lba, uint32_t count, FDDevice *dev);
 uint32_t FD_write_sectors(uint8_t *buf, uint32_t lba, uint32_t count, FDDevice *dev);
 bool     FD_check_support(void);
+
+/* FC=24: geometry packed as (NUMCYL<<16)|(NUMHD<<8)|NUMSEC */
+uint32_t FD_geom(FDDevice *dev);
+#define FD_GEOM_CYLS(r)   ((uint32_t)(r) >> 16)
+#define FD_GEOM_HEADS(r)  (((uint32_t)(r) >> 8) & 0xFFU)
+#define FD_GEOM_SECS(r)   ((uint32_t)(r) & 0xFFU)
+
+/* FC=25: probe media; returns FDM144/FDM720 or FRC_NODATA */
+int32_t  FD_media_detect(FDDevice *dev);
 
 #endif /* __ROSCO_M68K_FD_H */

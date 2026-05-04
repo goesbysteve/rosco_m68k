@@ -89,6 +89,8 @@ EFP_CHECKINPUT  equ     $498
 EFP_FD_INIT     equ     $49C
 EFP_FD_READ     equ     $4A0
 EFP_FD_WRITE    equ     $4A4
+EFP_FD_GEOM     equ     $4A8
+EFP_FD_MEDIA    equ     $4AC
 
   ifd REVISION1X
 ; MFP Location
