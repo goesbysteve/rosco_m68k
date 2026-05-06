@@ -54,7 +54,11 @@ BLOCKDEV_TRAP_13_HANDLER:
     dc.l    ATA_READ                    ; FC == 17
     dc.l    ATA_WRITE                   ; FC == 18
     dc.l    ATA_IDENTIFY                ; FC == 19
-    dc.l    CHECK_SUCCESS               ; FC == 20
+    ifd ROSCO_M68K_FDC
+    dc.l    CHECK_SUCCESS               ; FC == 20 -- FDC support present
+    else
+    dc.l    .NOT_IMPLEMENTED            ; FC == 20 -- FDC not compiled in
+    endc
     dc.l    FD_INIT                     ; FC == 21
     dc.l    FD_READ                     ; FC == 22
     dc.l    FD_WRITE                    ; FC == 23

@@ -4,6 +4,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <basicio.h>
 
 #include "fd.h"
 
@@ -191,6 +192,9 @@ void kmain(void) {
 
 
 done:
-    *FDC_DOR_ADDR = FDC_DOR_INIT;
-    printf("\r\nMotor off.\r\n");
+    /* Motor auto-off is handled by FD_motor_poll() in TICK_HANDLER (~3s).   */
+    /* Hold here so the tick ISR has time to cut the motor before warm boot.  */
+    printf("\r\nDone (motor will auto-off in ~3s).\r\n");
+    printf("Press any key to exit...\r\n");
+    inputchar();
 }

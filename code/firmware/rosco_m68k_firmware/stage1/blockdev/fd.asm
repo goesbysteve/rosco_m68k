@@ -291,6 +291,7 @@ FCP_DTL:        ds.b    1           ; byte 8: data length
 ; ----- FDC status (fd.asm FST_*) ---
 FST_RC:         ds.b    1           ; result code
 FST_DOR:        ds.b    1           ; shadow of DOR register
+FST_IDLECNT:    ds.w    1           ; idle countdown (ticks); 0 = disabled/off
 
 ; ----- Results buffer (fd.asm FRB_*) -- 7 bytes max ---
 FRB_LEN:        ds.b    1           ; number of result bytes received
@@ -405,9 +406,15 @@ FC_PULSETC:
 ; On entry: FCD_DS holds drive number (0 or 1).
 ; Writes DCR (CCR), then builds and writes DOR with motor bit.
 ; If motor was previously off: 500ms spinup delay.
+; Arms FST_IDLECNT unconditionally -- every motor-on resets the idle
+; timer, so back-to-back operations naturally extend the timeout.
 ; Trashes D0/D1.
 ;------------------------------------------------------------
 FC_MOTORON:
+                ; Arm idle motor-off countdown. Done here (not at operation
+                ; completion) so every motor-on path is covered, including
+                ; FD_media_detect probe calls.
+                move.w  #MOTOR_IDLE_TICKS,FST_IDLECNT
                 ; Write data rate to CCR (FDC_DCR = FDC_CCR = $F800C8)
                 move.b  FCD_W_DCR,D0
                 move.b  D0,$F800C8
@@ -461,6 +468,26 @@ FC_MOTORON:
 FC_MOTOROFF:
                 move.b  #DOR_INIT,FST_DOR
                 move.b  #DOR_INIT,$F800CE
+                clr.w   FST_IDLECNT         ; stop idle countdown
+                rts
+
+;------------------------------------------------------------
+; FD_motor_poll -- idle motor-off countdown tick
+; Call once per tick (100 Hz) from the MFP Timer C ISR chain
+; or from a main-loop idle handler.
+; Decrements FST_IDLECNT; cuts the motor when it reaches zero.
+; ISR-safe: saves and restores D0; trashes nothing else.
+;------------------------------------------------------------
+FD_motor_poll::
+                move.l  D0,-(sp)
+                move.w  FST_IDLECNT,D0
+                beq.s   .mpoll_done         ; 0 = disabled or already off
+                subq.w  #1,D0
+                move.w  D0,FST_IDLECNT
+                bne.s   .mpoll_done         ; not yet expired
+                bsr     FC_MOTOROFF         ; expired -- cut motor
+.mpoll_done:
+                move.l  (sp)+,D0
                 rts
 
 ;------------------------------------------------------------
@@ -1240,6 +1267,7 @@ FD_init::
 
                 ; Init driver globals
                 move.b  #DOR_INIT,FST_DOR
+                clr.w   FST_IDLECNT         ; idle disabled until first transfer
 
                 ; Load default media config into FCD working copy.
                 ; FDD_MEDIA(A1) selects the config block (0=720K, 1=1.44M).

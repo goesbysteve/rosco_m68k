@@ -6,7 +6,7 @@
 ;
 ;   DEFINES += -DFD_MEDIA_PRIMARY=0   ; force 720K-only build
 ;   DEFINES += -DFD_MEDIA_AUTO=0      ; skip auto-detect at boot
-;   DEFINES += -DFD_CPU_MHZ=20        ; 20MHz system clock
+;   DEFINES += -DFD_CPU_MHZ=10        ; 10MHz system clock
 ;------------------------------------------------------------
 
 ; CPU clock frequency in MHz. All time-based delay loop counts
@@ -42,4 +42,13 @@ FD_MEDIA_ALT    equ FDM720
 ; Set to 0 to skip probing and use FD_MEDIA_PRIMARY unconditionally.
     ifnd FD_MEDIA_AUTO
 FD_MEDIA_AUTO   equ 1
+    endc
+
+; Idle motor-off timeout in MFP Timer C ticks (100 Hz).
+; After each read/write, the motor is left running for this many ticks
+; before being cut.  FD_motor_poll() is called automatically from
+; TICK_HANDLER (rev1.asm / rev2.asm) when WITH_FDC=true.
+; Set to 0 to disable auto-off entirely.
+    ifnd MOTOR_IDLE_TICKS
+MOTOR_IDLE_TICKS equ 300           ; 3 seconds at 100 Hz
     endc

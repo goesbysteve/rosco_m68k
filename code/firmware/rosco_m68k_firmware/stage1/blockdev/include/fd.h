@@ -78,4 +78,14 @@ uint32_t FD_geom(FDDevice *dev);
 /* FC=25: probe media; returns FDM144/FDM720 or FRC_NODATA */
 int32_t  FD_media_detect(FDDevice *dev);
 
+/*
+ * FD_motor_poll -- idle motor-off countdown tick.
+ * Must be called once per 100 Hz MFP Timer C tick (or from the
+ * application idle loop at a similar rate).
+ * Decrements the idle counter armed after each read/write;
+ * cuts the motor when the counter reaches zero.
+ * Safe to call from an ISR: saves and restores only D0.
+ */
+void FD_motor_poll(void);
+
 #endif /* __ROSCO_M68K_FD_H */

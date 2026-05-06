@@ -1,8 +1,8 @@
 ;------------------------------------------------------------
-;                                  ___ ___ _   
-;  ___ ___ ___ ___ ___       _____|  _| . | |_ 
+;                                  ___ ___ _
+;  ___ ___ ___ ___ ___       _____|  _| . | |_
 ; |  _| . |_ -|  _| . |     |     | . | . | '_|
-; |_| |___|___|___|___|_____|_|_|_|___|___|_,_| 
+; |_| |___|___|___|___|_____|_|_|_|___|___|_,_|
 ;                     |_____|       firmware v2
 ;------------------------------------------------------------
 ; Copyright (c)2019-2022 Ross Bamford and contributors
@@ -30,7 +30,7 @@ STOP_HEART::
 
 
 ;------------------------------------------------------------
-; Exception handlers    
+; Exception handlers
 TICK_HANDLER::
     move.l  D0,-(A7)                  ; Save D0
 
@@ -38,13 +38,13 @@ TICK_HANDLER::
     move.l  SDB_UPTICKS,D0            ; Read SDB dword at 12
     add.l   #1,D0                     ; Increment
     move.l  D0,SDB_UPTICKS            ; And write back
-    
+
     ; Heartbeat
     move.w  SDB_TICKCNT,D0            ; Read SDB word at 8
     tst.w   D0                        ; Is it zero?
     bne.s   .TICK_HANDLER_DONE        ; Done if not
-    
-    ; counted to zero, so toggle indicator 0 (if allowed) 
+
+    ; counted to zero, so toggle indicator 0 (if allowed)
     ; and reset counter
     move.b  SDB_SYSFLAGS,D0           ; Get sysflags (high byte)
     and.b   #1,D0                     ; Mask bit 0 to toggle with flags
@@ -57,6 +57,10 @@ TICK_HANDLER::
     sub.w   #$1,D0                    ; Decrement counter...
     move.w  D0,SDB_TICKCNT            ; ... and write back to SDB
 
+    ifd ROSCO_M68K_FDC
+    bsr     FD_motor_poll             ; Idle motor-off countdown (saves/restores D0)
+    endc
+
     move.b  #~$20,MFP_ISRB            ; Clear interrupt-in-service
     move.l  (A7)+,D0                  ; Restore D0
 
@@ -67,9 +71,9 @@ BUS_ERROR_HANDLER::
     or.w    #0700,SR                  ; Disable exceptions
 
     move.b  #0,MFP_IERA               ; Disable MFP interrupts
-    move.b  #0,MFP_IERB               
+    move.b  #0,MFP_IERB
     move.b  #$FF,MFP_DDR              ; All GPIOs are output
-    
+
     move.b  #$FD,MFP_GPDR             ; Turn on red LED
     move.l  #100000,D0                ; Wait a while
     bsr.w   BUSYWAIT
@@ -78,7 +82,7 @@ BUS_ERROR_HANDLER::
     bsr.w   BUSYWAIT
 
     bra.s   BUS_ERROR_HANDLER
-    
+
     rte                               ; Never reached
 
 
@@ -86,9 +90,9 @@ ADDRESS_ERROR_HANDLER::
     or.w    #0700,SR                  ; Disable exceptions
 
     move.b  #0,MFP_IERA               ; Disable MFP interrupts
-    move.b  #0,MFP_IERB               
+    move.b  #0,MFP_IERB
     move.b  #$FF,MFP_DDR              ; All GPIOs are output
-    
+
     move.b  #$FD,MFP_GPDR             ; Turn on red LED
     move.l  #50000,D0                 ; Wait a while
     bsr.w   BUSYWAIT
@@ -103,7 +107,7 @@ ADDRESS_ERROR_HANDLER::
     bsr.w   BUSYWAIT
 
     bra.s   ADDRESS_ERROR_HANDLER
-    
+
     rte                               ; Never reached
 
 
@@ -111,7 +115,7 @@ ILLEGAL_INSTRUCTION_HANDLER::
     or.w    #0700,SR                  ; Disable exceptions
 
     move.b  #0,MFP_IERA               ; Disable MFP interrupts
-    move.b  #0,MFP_IERB               
+    move.b  #0,MFP_IERB
     move.b  #$FF,MFP_DDR              ; All GPIOs are output
 
     move.b  #$FD,MFP_GPDR             ; Turn on red LED
@@ -134,7 +138,7 @@ ILLEGAL_INSTRUCTION_HANDLER::
     bsr.w   BUSYWAIT
 
     bra.w   ILLEGAL_INSTRUCTION_HANDLER
-    
+
     rte                               ; Never reached
 
     endif

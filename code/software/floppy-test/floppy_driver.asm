@@ -1,15 +1,16 @@
 ; TRAP wrappers for firmware floppy blockdev functions.
 
+; FD_check_support -- returns 1 if firmware was built with FDC support, 0 if not.
+; Uses FC=20 (CHECK_SUCCESS): returns $1234FEDC when FDC support is compiled in.
 FD_check_support::
     move.l  #20,D0
     trap    #13
     cmp.l   #$1234FEDC,D0
     beq.s   .ok
-    move.l  #0,D0
-    bra.s   .done
+    moveq.l #0,D0
+    rts
 .ok
-    move.l  #1,D0
-.done
+    moveq.l #1,D0
     rts
 
 ; uint32_t FD_init(uint32_t drive, void *dev)
