@@ -16,4 +16,11 @@ endif
 
 EXTRA_LIBS=
 
-EXTRA_CFLAGS += -I$(ROSCO_M68K_DEFAULT_DIR)/code/firmware/rosco_m68k_firmware/stage1/blockdev/include
+EXTRA_CFLAGS += -I$(ROSCO_M68K_DEFAULT_DIR)/code/software/fdc
+
+FDC_DIR=$(ROSCO_M68K_DEFAULT_DIR)/code/software/fdc
+
+fdc.o: $(FDC_DIR)/fdc.asm
+	$(VASM) $(VASMFLAGS) $(EXTRA_VASMFLAGS) -L fdc.lst -o $@ $<
+
+$(ELF): fdc.o

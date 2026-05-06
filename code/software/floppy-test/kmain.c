@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <basicio.h>
 
-#include "fd.h"
+#include "fdc.h"
 
 /* Memory-mapped register addresses */
 #define FDC_MSR_ADDR    ((volatile uint8_t *)0x00F800CAU)
