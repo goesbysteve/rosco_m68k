@@ -3,7 +3,7 @@
 
 This document describes the interfaces provided for programmers,
 hardware integrators and those expanding the rosco_m68k, as it
-applies to firmware revision 2.0. 
+applies to firmware revision 2.0.
 
 The information contained herein is accurate and complete as far
 as possible, and will be kept updated as firmware 2.0 is developed.
@@ -34,6 +34,12 @@ as possible, and will be kept updated as firmware 2.0 is developed.
       * 1.1.2.18 ATA_READ_SECTORS (Function #17)
       * 1.1.2.19 ATA_WRITE_SECTORS (Function #18)
       * 1.1.2.20 ATA_IDENTIFY (Function #19)
+      * 1.1.2.21 CHECK_FDC_SUPPORT (Function #20)
+      * 1.1.2.22 FD_INIT (Function #21)
+      * 1.1.2.23 FD_READ_SECTORS (Function #22)
+      * 1.1.2.24 FD_WRITE_SECTORS (Function #23)
+      * 1.1.2.25 FD_GEOM (Function #24)
+      * 1.1.2.26 FD_MEDIA_DETECT (Function #25)
   * 1.2. Character device IO routines (TRAP 14)
     * 1.2.1 Example Usage
     * 1.2.2 Functions
@@ -112,16 +118,16 @@ handlers). Extension code, drivers and user code are free to re-use
 these vectors as they see fit.
 
 The standard TRAP handlers use various registers as arguments, and
-may also use one or more registers to return values to the 
-calling code. These registers are documented in the following 
+may also use one or more registers to return values to the
+calling code. These registers are documented in the following
 sections. In all cases, all registers other than those stated
 in this documentation are preserved.
 
-**Note** that the standard firmware TRAP handlers rely on the 
+**Note** that the standard firmware TRAP handlers rely on the
 integrity of the System Data Area in memory. If this area is
 reused or corrupted, these routines may not function properly.
 
-(*) Note that the Easy68k layer may optionally be omitted from the 
+(*) Note that the Easy68k layer may optionally be omitted from the
 firmware build. In such cases, the functions offered on TRAP 15 will
 not be available, and that TRAP vector may be reused.
 
@@ -134,12 +140,12 @@ Register D0.L is expected to contain the function code (note that
 this is different to the TRAP 14 handler!). Other arguments
 depend on the specific function, and are documented below.
 
-In all cases, registers used as aguments (including D0.L) are **not** 
+In all cases, registers used as aguments (including D0.L) are **not**
 guaranteed to be preserved. All other registers are preserved.
 
 Function codes outside the range documented here are considered
 reserved for future expansion, and should not be used by integrators
-or other code. The exception to this is where the user program 
+or other code. The exception to this is where the user program
 is intended to take complete control of the system, in which case
 the TRAP handlers, and the SDA that underpins them, may be entirely
 replaced in the scope of that program.
@@ -160,14 +166,14 @@ SD_read_block::
     rts
 ```
 
-With GCC as the compiler, this could be called directly from C, 
-with the prototype: 
+With GCC as the compiler, this could be called directly from C,
+with the prototype:
 
 
 ```
 bool SD_read_block(SDCard *sd, uint32_t block, void *buf);
 ```
- 
+
 ### 1.1.2 Functions
 
 #### 1.1.2.1 CHECK_SD_SUPPORT (Function #0)
@@ -185,7 +191,7 @@ bool SD_read_block(SDCard *sd, uint32_t block, void *buf);
 Determine whether SD Card support is present in the Firmware.
 
 Where SD Card support is available, this will return the magic
-number $1234FEDC in D0.L. 
+number $1234FEDC in D0.L.
 
 Any other value indicates that support is not available. In this
 case, none of the SD Card routines should be used.
@@ -208,13 +214,13 @@ routine is retained to allow easy backward-compatibility.
 
 **Description**
 
-Attempt to initialize the SD Card. 
+Attempt to initialize the SD Card.
 
 The memory pointed to by A1 will be a SDCard structure - see
 sdfat.h in the standard libraries for details.
 
 The return value in D0.L will be one of the SDInitStatus
-codes - `SD_INIT_OK` (ordinal 0) indicates success, while failure 
+codes - `SD_INIT_OK` (ordinal 0) indicates success, while failure
 is indicated by any other value. Again, see sdfat.h for details.
 
 #### 1.1.2.3 SD_READ_BLOCK (Function #2)
@@ -307,7 +313,7 @@ indicates success.
 Determine whether SPI support is present in the Firmware.
 
 Where SPI Card support is available, this will return the magic
-number $1234FEDC in D0.L. 
+number $1234FEDC in D0.L.
 
 Any other value indicates that support is not available. In this
 case, none of the SPI routines should be used.
@@ -328,7 +334,7 @@ routine is retained to allow easy backward-compatibility.
 
 **Description**
 
-Initialize the SPI interface. This sets the SPI pins to the 
+Initialize the SPI interface. This sets the SPI pins to the
 appropriate modes (input vs output).
 
 #### 1.1.2.8 SPI_ASSERT_CS (Function #7)
@@ -345,7 +351,7 @@ appropriate modes (input vs output).
 
 **Description**
 
-Assert the appropriate CS line. Note that asserting one line 
+Assert the appropriate CS line. Note that asserting one line
 *does not* automatically deassert the other!
 
 #### 1.1.2.9 SPI_DEASSERT_CS (Function #8)
@@ -362,7 +368,7 @@ Assert the appropriate CS line. Note that asserting one line
 
 **Description**
 
-Deassert the appropriate CS line. 
+Deassert the appropriate CS line.
 
 #### 1.1.2.10 SPI_TRANSFER_BYTE (Function #9)
 
@@ -396,7 +402,7 @@ Send and receive a byte (exchange) via SPI.
 
 **Description**
 
-Transfer count (`D1.L`) bytes from the given buffer, exchanging them 
+Transfer count (`D1.L`) bytes from the given buffer, exchanging them
 with bytes received at the same time (and returned in the buffer).
 
 Note that the buffer pointer may be modified, so keep a copy locally.
@@ -485,7 +491,7 @@ Note that the buffer pointer may be modified, so keep a copy locally.
 Determine whether ATA support is present in the Firmware.
 
 Where ATA support is available, this will return the magic
-number $1234FEDC in D0.L. 
+number $1234FEDC in D0.L.
 
 Any other value indicates that support is not available. In this
 case, none of the ATA routines should be used.
@@ -510,13 +516,13 @@ routine is retained to allow easy backward-compatibility.
 
 **Description**
 
-Attempt to initialize an ATA device. 
+Attempt to initialize an ATA device.
 
 The memory pointed to by A1 will be a ATADevice structure - see
 ata.h in the standard libraries for details.
 
 The return value in D0.L will be one of the ATAInitStatus
-codes - `ATA_INIT_OK` (ordinal 0) indicates success, while failure 
+codes - `ATA_INIT_OK` (ordinal 0) indicates success, while failure
 is indicated by any other value. Again, see ata.h for details.
 
 #### 1.1.2.18 ATA_READ_SECTORS (Function #17)
@@ -539,7 +545,7 @@ is indicated by any other value. Again, see ata.h for details.
 
 **Description**
 
-Read the number of 512-byte sectors (indicated by `D2.L`) from the 
+Read the number of 512-byte sectors (indicated by `D2.L`) from the
 ATA device into the buffer pointed to by `A2`.
 
 Returns the actual number of sectors read in `D0.L`.
@@ -564,7 +570,7 @@ Returns the actual number of sectors read in `D0.L`.
 
 **Description**
 
-Write the number of 512-byte sectors (indicated by `D2.L`) from the 
+Write the number of 512-byte sectors (indicated by `D2.L`) from the
 buffer pointed to by `A2` to the ATA device, starting at the LBA sector
 indicated by `D1.L`.
 
@@ -593,23 +599,141 @@ the results in the supplied buffer.
 
 Returns 1 in `D0.L` if successful, 0 otherwise.
 
+#### 1.1.2.21 CHECK_FDC_SUPPORT (Function #20)
+
+**Arguments**
+
+* `D0.L` - 20 (Function code)
+
+**Modifies**
+
+* `D0.L` - Return value
+
+**Description**
+
+Determine whether WD37C65 floppy controller support is present in the firmware
+(i.e. the firmware was built with `WITH_FDC=true`).
+
+Where FDC support is available, this will return the magic number `$1234FEDC`
+in `D0.L`. Any other value indicates that support is not available; none of the
+FDC routines should be used in that case.
+
+#### 1.1.2.22 FD_INIT (Function #21)
+
+**Arguments**
+
+* `D0.L` - 21 (Function code)
+* `D1.L` - Drive number (0 or 1)
+* `A1`   - Pointer to a zero-initialised FDDevice struct
+
+**Modifies**
+
+* `D0.L` - Return value (0 = OK, non-zero = error)
+* `A0`   - Modified arbitrarily
+
+**Description**
+
+Initialise the specified floppy drive. The caller must provide a zero-initialised
+`FDDevice` struct (see `fdc.h`). On success returns 0; on failure returns a
+non-zero `FRC_*` error code.
+
+#### 1.1.2.23 FD_READ_SECTORS (Function #22)
+
+**Arguments**
+
+* `D0.L` - 22 (Function code)
+* `D1.L` - Starting LBA sector number
+* `D2.L` - Number of sectors to read
+* `A1`   - Pointer to an initialised FDDevice struct
+* `A2`   - Pointer to a buffer (must be at least `count × 512` bytes)
+
+**Modifies**
+
+* `D0.L` - Number of sectors successfully read (negative on error)
+* `A0`   - Modified arbitrarily
+
+**Description**
+
+Read one or more 512-byte sectors from the floppy disk, starting at the given
+LBA address, into the buffer pointed to by `A2`.
+
+#### 1.1.2.24 FD_WRITE_SECTORS (Function #23)
+
+**Arguments**
+
+* `D0.L` - 23 (Function code)
+* `D1.L` - Starting LBA sector number
+* `D2.L` - Number of sectors to write
+* `A1`   - Pointer to an initialised FDDevice struct
+* `A2`   - Pointer to the source buffer
+
+**Modifies**
+
+* `D0.L` - Number of sectors successfully written (negative on error)
+* `A0`   - Modified arbitrarily
+
+**Description**
+
+Write one or more 512-byte sectors to the floppy disk, starting at the given
+LBA address, from the buffer pointed to by `A2`.
+
+#### 1.1.2.25 FD_GEOM (Function #24)
+
+**Arguments**
+
+* `D0.L` - 24 (Function code)
+* `A1`   - Pointer to an initialised FDDevice struct
+
+**Modifies**
+
+* `D0.L` - Packed geometry: `(NUMCYL << 16) | (NUMHD << 8) | NUMSEC`
+* `A0`   - Modified arbitrarily
+
+**Description**
+
+Return the geometry of the current media. Use the `FD_GEOM_CYLS(r)`,
+`FD_GEOM_HEADS(r)` and `FD_GEOM_SECS(r)` macros from `fdc.h` to unpack
+the result.
+
+#### 1.1.2.26 FD_MEDIA_DETECT (Function #25)
+
+**Arguments**
+
+* `D0.L` - 25 (Function code)
+* `A1`   - Pointer to an initialised FDDevice struct
+
+**Modifies**
+
+* `D0.L` - Media type: `FDM144` (1) = 1.44 MB, `FDM720` (0) = 720 KB; negative `FRC_*` code on failure
+* `A0`   - Modified arbitrarily
+
+**Description**
+
+Probe the inserted disk to determine its media type. Uses `READID` to detect
+the data rate and updates `dev->media_type`. Returns `FRC_NODATA` (-14) if no
+disk is present or the disk cannot be identified.
+
+> **Note** Motor auto-off is managed automatically by the firmware. When `WITH_FDC=true`,
+> the TICK_HANDLER (100 Hz) calls `FD_motor_poll` which cuts drive power after
+> approximately 3 seconds of inactivity.
+
 ## 1.2. Basic IO routines (TRAP 14)
 
-TRAP 14 provides access to the character-based IO functionality 
+TRAP 14 provides access to the character-based IO functionality
 provided by the firmware. This includes the default UART and
 console.
 
 Register D1.L is expected to contain the function code. Other arguments
 depend on the specific function, and are documented below.
 
-In all cases, registers used as aguments (**excluding** D1.L, which 
+In all cases, registers used as aguments (**excluding** D1.L, which
 will be preserved unless explicitly documented as used for a return
-value) are **not** guaranteed to be preserved. All 
+value) are **not** guaranteed to be preserved. All
 other registers are preserved.
 
 Function codes outside the range documented here are considered
 reserved for future expansion, and should not be used by integrators
-or other code. The exception to this is where the user program 
+or other code. The exception to this is where the user program
 is intended to take complete control of the system, in which case
 the TRAP handlers, and the SDA that underpins them, may be entirely
 replaced in the scope of that program.
@@ -645,19 +769,19 @@ MYSTRING    dc.b    "Hello, World!", 0
 **Description**
 
 Print the null-terminated string pointed to by `A0` to the system's
-*default console*. 
+*default console*.
 
 Where the default console is a serial terminal, this routine may block until
-there is space in the UART's transmit buffer for the character - as such, 
-it is not suitable for use in time- or latency-critical code (e.g. interrupt 
+there is space in the UART's transmit buffer for the character - as such,
+it is not suitable for use in time- or latency-critical code (e.g. interrupt
 handlers).
 
-The default console is initialized at boot-time by the firmware, and 
+The default console is initialized at boot-time by the firmware, and
 may be the V9958 console (where available), or the *default serial UART*.
 For details on the default UART, see the `SENDCHAR` function.
 
 System integrators and third-party hardware developers may also override
-the default console (for example to output to third-party video 
+the default console (for example to output to third-party video
 hardware). See section 2.3 for details.
 
 #### 1.2.2.2 PRINTLN (Function #1)
@@ -677,16 +801,16 @@ Print the null-terminated string pointed to by `A0` to the system's
 *default console* followed by a CR/LF sequence.
 
 Where the default console is a serial terminal, this routine may block until
-there is space in the UART's transmit buffer for the character - as such, 
-it is not suitable for use in time- or latency-critical code (e.g. interrupt 
+there is space in the UART's transmit buffer for the character - as such,
+it is not suitable for use in time- or latency-critical code (e.g. interrupt
 handlers).
 
-The default console is initialized at boot-time by the firmware, and 
+The default console is initialized at boot-time by the firmware, and
 may be the V9958 console (where available), or the *default serial UART*.
 For details on the default UART, see the `SENDCHAR` function.
 
 System integrators and third-party hardware developers may also override
-the default console (for example to output to third-party video 
+the default console (for example to output to third-party video
 hardware). See section 2.3 for details.
 
 #### 1.2.2.3 SENDCHAR (Function #2)
@@ -703,16 +827,16 @@ Nothing
 **Description**
 
 Synchronously send the character contained in `D0.B` via the system's
-*default UART*. This routine may block until there is space in the 
+*default UART*. This routine may block until there is space in the
 UART's transmit buffer for the character - as such, it is not suitable
 for use in time- or latency-critical code (e.g. interrupt handlers).
 
 The default UART is initialized at boot-time by the firmware, and
-will generally be the "best" serial UART available (with the 
+will generally be the "best" serial UART available (with the
 fallback being the MC68901 UART that is expected to be always installed).
 
 System integrators and third-party hardware developers may also override
-the default UART (for example to utilise third-party hardware). 
+the default UART (for example to utilise third-party hardware).
 See section 2.3 for details.
 
 #### 1.2.2.4 RECVCHAR (Function #3)
@@ -733,11 +857,11 @@ routine will block until one becomes available. As such, it is not suitable
 for use in time- or latency-critical code (e.g. interrupt handlers).
 
 The default UART is initialized at boot-time by the firmware, and
-will generally be the "best" serial UART available (with the 
+will generally be the "best" serial UART available (with the
 fallback being the MC68901 UART that is expected to be always installed).
 
 System integrators and third-party hardware developers may also override
-the default UART (for example to utilise third-party hardware). 
+the default UART (for example to utilise third-party hardware).
 See section 2.3 for details.
 
 #### 1.2.2.5 PRINTCHAR (Function #4)
@@ -756,16 +880,16 @@ Nothing
 Print the character in `D0.B` to the system's *default console*.
 
 Where the default console is a serial terminal, this routine may block until
-there is space in the UART's transmit buffer for the character - as such, 
-it is not suitable for use in time- or latency-critical code (e.g. interrupt 
+there is space in the UART's transmit buffer for the character - as such,
+it is not suitable for use in time- or latency-critical code (e.g. interrupt
 handlers).
 
-The default console is initialized at boot-time by the firmware, and 
+The default console is initialized at boot-time by the firmware, and
 may be the V9958 console (where available), or the *default serial UART*.
 For details on the default UART, see the `SENDCHAR` function.
 
 System integrators and third-party hardware developers may also override
-the default console (for example to output to third-party video 
+the default console (for example to output to third-party video
 hardware). See section 2.3 for details.
 
 #### 1.2.2.6 SETCURSOR (Function #5)
@@ -785,12 +909,12 @@ Show or hide the cursor on the *default console*. Where this is not possible]
 (e.g. where the default console is a serial terminal) this routine does
 nothing.
 
-The default console is initialized at boot-time by the firmware, and 
+The default console is initialized at boot-time by the firmware, and
 may be the V9958 console (where available), or the *default serial UART*.
 For details on the default UART, see the `SENDCHAR` function.
 
 System integrators and third-party hardware developers may also override
-the default console (for example to output to third-party video 
+the default console (for example to output to third-party video
 hardware). See section 2.3 for details.
 
 #### 1.2.2.7 CHECKCHAR (Function #6)
@@ -806,17 +930,17 @@ hardware). See section 2.3 for details.
 **Description**
 
 Determine whether the system's *default UART* has a character waiting to
-be received, returning non-zero in `D0.B` if so, zero otherwise. 
+be received, returning non-zero in `D0.B` if so, zero otherwise.
 
 This can be used to determine whether a call to `RECVCHAR` will block.
 Note that this function may clear error flags and other status information.
 
 The default UART is initialized at boot-time by the firmware, and
-will generally be the "best" serial UART available (with the 
+will generally be the "best" serial UART available (with the
 fallback being the MC68901 UART that is expected to be always installed).
 
 System integrators and third-party hardware developers may also override
-the default UART (for example to utilise third-party hardware). 
+the default UART (for example to utilise third-party hardware).
 See section 2.3 for details.
 
 #### 1.2.2.8 CHECK_DEVICE_SUPPORT (Function #7)
@@ -834,7 +958,7 @@ See section 2.3 for details.
 Check if the new _Character Device Support_ (available since firmware
 2.30) is available.
 
-Where support is available, this will return the magic number $1234FEDC 
+Where support is available, this will return the magic number $1234FEDC
 in `D0.L`.
 
 Any other value indicates that support is not available. In this
@@ -852,7 +976,7 @@ case, none of the character device routines should be used.
 
 **Description**
 
-Returns the number of character devices the firmware knows about in 
+Returns the number of character devices the firmware knows about in
 `D0.W`.
 
 #### 1.2.2.10 GET_DEVICE (Function #9)
@@ -871,7 +995,7 @@ Returns the number of character devices the firmware knows about in
 **Description**
 
 Populates the supplied device structure with data for the
-specified device number. 
+specified device number.
 
 Note that the data is copied into the structure you supply,
 you cannot use this to modify system data structures.
@@ -903,15 +1027,15 @@ a value >15 to indicate failure.
 **Modifies**
 
 * `D0.B` - Returns the received character
-* `A0`   - Trashed 
+* `A0`   - Trashed
 
 **Description**
 
 Synchronously receive a character via the character device in the supplied
-`CHAR_DEVICE` structure, and return it in `D0.B`. 
+`CHAR_DEVICE` structure, and return it in `D0.B`.
 
 If no character is immediately available, this routine _may_ block until one
-becomes available. As such, it is not suitable for use in time- or 
+becomes available. As such, it is not suitable for use in time- or
 latency-critical code (e.g. interrupt handlers).
 
 #### 1.2.2.13 DEVICE_SENDCHAR (Function #12)
@@ -924,15 +1048,15 @@ latency-critical code (e.g. interrupt handlers).
 
 **Modifies**
 
-* `A0`   - Trashed 
+* `A0`   - Trashed
 
 **Description**
 
-Synchronously send the character contained in `D0.B` via the character 
-device referenced by the supplied `CHAR_DEVICE` structure. 
+Synchronously send the character contained in `D0.B` via the character
+device referenced by the supplied `CHAR_DEVICE` structure.
 
 This routine _may_ block until there is space in the device's buffer
-for the character - as such, it is not suitable for use in time- or 
+for the character - as such, it is not suitable for use in time- or
 latency-critical code (e.g. interrupt handlers).
 
 #### 1.2.2.14 DEVICE_CHECKCHAR (Function #13)
@@ -945,15 +1069,15 @@ latency-critical code (e.g. interrupt handlers).
 **Modifies**
 
 * `D0.B` - 0 if no character waiting, nonzero otherwise
-* `A0`   - Trashed 
+* `A0`   - Trashed
 
 **Description**
 
 Determine whether the the character device referenced by the supplied
- `CHAR_DEVICE` structure has a character waiting to be received, returning 
- non-zero in `D0.B` if so, zero otherwise. 
+ `CHAR_DEVICE` structure has a character waiting to be received, returning
+ non-zero in `D0.B` if so, zero otherwise.
 
-This can be used to determine whether a call to `DEVICE_RECVCHAR` will 
+This can be used to determine whether a call to `DEVICE_RECVCHAR` will
 block if called for the same device.
 
 Note that this function _may_ clear error flags and other status information.
@@ -980,7 +1104,7 @@ This function code is reserved for future use and should not be called.
 **Modifies**
 
 * `D0.L` - 0 if unknown command, device/command-specific result otherwise
-* `A0`   - Trashed 
+* `A0`   - Trashed
 
 **Description**
 
@@ -989,7 +1113,7 @@ Send a device-specific command, with optional parameters in the high
 
 The commands supported, the parameters they take, and the return value
 of this function are all device specific. See the specific documentation
-for the device (which can be identified by the device type in the 
+for the device (which can be identified by the device type in the
 `CHAR_DEVICE` block) for details.
 
 #### 1.2.2.18 INPUTCHAR (Function #17)
@@ -1008,7 +1132,7 @@ Read a character from the default input device. Will block until a
 character is available.
 
 In systems where the rosco_m68k (or compatible) keyboard is connected to the
-second UART, this will check the keyboard. 
+second UART, this will check the keyboard.
 
 Otherwise, the default input will usually be the main UART.
 
@@ -1027,17 +1151,17 @@ Otherwise, the default input will usually be the main UART.
 Check the default input device for a waiting character.
 
 In systems where the rosco_m68k (or compatible) keyboard is connected to the
-second UART, this will check the keyboard. 
+second UART, this will check the keyboard.
 
 Otherwise, the default input will usually be the main UART.
 
 ## 1.3. Easy68k compatibility layer (TRAP 15)
 
 TRAP 15 provides an (optional, included by default) Easy68k-compatible
-IO interface. The aim is to allow many common Easy68k programs to be 
+IO interface. The aim is to allow many common Easy68k programs to be
 run on the rosco_m68k without modification.
 
-Currently only a subset of the Easy68K tasks are implemented. Output 
+Currently only a subset of the Easy68K tasks are implemented. Output
 will always go to the **default console** (See section 1.1.2.1) and input
 will be via the **default UART** (See section 1.1.2.3). Depending on
 capabilities of the input and output devices, some functions may not
@@ -1081,7 +1205,7 @@ MYSTRING    dc.b    "Hello, World!"
 **Description**
 
 Print the string at (A1), D1.W bytes long (max 255) with carriage return
-and line feed (CR, LF) to the system's *default console*. 
+and line feed (CR, LF) to the system's *default console*.
 
 See also: Function 13
 
@@ -1101,7 +1225,7 @@ See also: Function 13
 **Description**
 
 Print the string at (A1), D1.W bytes long (max 255) **without** carriage return
-and line feed (CR, LF) to the system's *default console*. 
+and line feed (CR, LF) to the system's *default console*.
 
 See also: Function 14
 
@@ -1119,7 +1243,7 @@ See also: Function 14
 
 **Description**
 
-Read string from keyboard and store at (A1), NULL terminated, length retuned in D1.W (max 80). 
+Read string from keyboard and store at (A1), NULL terminated, length retuned in D1.W (max 80).
 
 #### 1.3.2.4 DISPLAYNUM_SIGNED (Function #3)
 
@@ -1198,31 +1322,31 @@ Display single character in D1.B.
 
 **Description**
 
-Set D1.B to 1 if keyboard input is pending, otherwise set to 0. 
+Set D1.B to 1 if keyboard input is pending, otherwise set to 0.
 Use Function 5 to read pending key.
 
 **Notes**
 
 **This function is to be avoided if possible**.
 
-Using this function doesn't make a lot of sense in the current rosco_m68k 
-environment, because all input is via the UART. This means that, while this 
+Using this function doesn't make a lot of sense in the current rosco_m68k
+environment, because all input is via the UART. This means that, while this
 function _is_ implemented, its meaning is subtly different from the Easy68K
-equivalent - here true result means there is serial data waiting, not 
+equivalent - here true result means there is serial data waiting, not
 specifically a user keypress.
 
 That's not the worst of it, however - if the MC68901 UART is currently the
 system's *default UART*, **using this task may actually be harmful**.
-It may silently clear any errors the UART is signalling. This is 
+It may silently clear any errors the UART is signalling. This is
 because it works by reading the Buffer Full indicator bit in the receiver
 status register, which has the effect of _also_ clearing the error flags
-(e.g. overrun) in that same register. Normally, these would be checked 
-during a receive, but this task doesn't check them _at all_ and so could 
+(e.g. overrun) in that same register. Normally, these would be checked
+during a receive, but this task doesn't check them _at all_ and so could
 lead to errors being ignored / discarded.
 
-So, if you must use this task, keep all this in mind! 
+So, if you must use this task, keep all this in mind!
 
-See also: Function 5                       
+See also: Function 5
 
 #### 1.3.2.9 GETUPTICKS (Function #8)
 
@@ -1241,19 +1365,19 @@ Return upticks (time in hundredths of a second since boot) in D1.L.
 **Notes**
 
 Easy68K defines this function as returning the count of "hundredths of a
-second since midnight", but since the rosco_m68k doesn't have a real-time 
-clock this just returns the system tick counter from the system data 
-block (SDB), which is updated by the system tick handler (driven by a 
+second since midnight", but since the rosco_m68k doesn't have a real-time
+clock this just returns the system tick counter from the system data
+block (SDB), which is updated by the system tick handler (driven by a
 programmable interrupt which may be disabled).
 
 Unfortunately this counter is only word-sized, and will roll over every
 655.36 seconds (or 10.92 minutes if you prefer). It also isn't updated at
-exactly 100HZ, so all-in-all this isn't really going to return "hundredths 
-of a second since boot" unless you aren't particularly strict with your 
+exactly 100HZ, so all-in-all this isn't really going to return "hundredths
+of a second since boot" unless you aren't particularly strict with your
 definition of "hundredths" and the computer was started less than ~11 minutes ago.
 
 If you do need any kind of precision timing, you'll have to design some sort
-of expansion that connects to the expansion bus :) 
+of expansion that connects to the expansion bus :)
 
 #### 1.3.2.10 TERMINATE (Function #9)
 
@@ -1287,7 +1411,7 @@ intervention.
 
 **Description**
 
-Position the cursor at ROW, COL. 
+Position the cursor at ROW, COL.
 
 Support is not mandatory for any given console. E.g. requires ANSI support
 on the receiving terminal where the default console is a UART.
@@ -1335,7 +1459,7 @@ Echo is restored on 'Reset'.
 **Description**
 
 Print the NULL-terminated string at (A1) with carriage return
-and line feed (CR, LF) to the system's *default console*. 
+and line feed (CR, LF) to the system's *default console*.
 
 See also: Function 0
 
@@ -1354,7 +1478,7 @@ See also: Function 0
 **Description**
 
 Print the NULL-terminated string at (A1) **without** carriage return
-and line feed (CR, LF) to the system's *default console*. 
+and line feed (CR, LF) to the system's *default console*.
 
 See also: Function 1
 
@@ -1373,7 +1497,7 @@ See also: Function 1
 
 **Description**
 
-Display the unsigned number in D1.L converted to number base (2 
+Display the unsigned number in D1.L converted to number base (2
 through 36) contained in D2.B.
 
 For example, to display D1.L in base16 put 16 in D2.B
@@ -1469,7 +1593,7 @@ It is worth noting that if memory is in high demand and the program
 being run intends to take full control of the system (i.e. not make
 use of any of the firmware TRAP routines or default exception
 handlers) then some of this are may be reused. As this is advanced
-usage, it is assumed that you know what you need to keep in 
+usage, it is assumed that you know what you need to keep in
 order for the basic machine to function.
 
 All addresses listed in this section are physical addresses. If you
@@ -1484,11 +1608,11 @@ to take virtual addressing into account and translate accordingly.
 **End Address**: 0x3FF
 **Size**: 0x400 (1024 bytes, 1KB)
 
-This area contains the exception vectors for use by the CPU. 
+This area contains the exception vectors for use by the CPU.
 See the MC68010 manual for the layout of this area.
 
 In order to use custom exception handlers, you will want to
-replace the appropriate vector with the address of your 
+replace the appropriate vector with the address of your
 handler function. Writing exception handlers is beyond the
 scope of this document.
 
@@ -1541,13 +1665,13 @@ The default value for the flags word is $XFXX (XX being reserved bits which can
 have any value). This allows the system to take control of the two LEDs I0 and I1.
 
 User code may clear any of the non-reserved bits to take full control of the appropriate
-lines. 
+lines.
 
-**Note** that changing any reserved bits from their default values will result in 
+**Note** that changing any reserved bits from their default values will result in
 undefined behaviour and possible data loss.
 
 **Note** that, in the case of total system crash (i.e. a crash that is unrecoverable
-without a hardware button-push reset), these bits will not be honored and the system 
+without a hardware button-push reset), these bits will not be honored and the system
 will assume full control.
 
 **Note** also that clearing these bits has no effect on the actual state of the relevant
@@ -1567,11 +1691,11 @@ Where multiple processors are present, this field will refer to the boot CPU.
 **Size**: 0xE0 (224 bytes, 56 pointers)
 
 This area contains pointers to functions which are called by the
-firmware and TRAP handlers to achieve various things. 
+firmware and TRAP handlers to achieve various things.
 
 The purpose of this pointer table is to allow these functions
 to be replaced by driver software. For example, the V9958 driver
-replaces some of these functions in order to redirect output 
+replaces some of these functions in order to redirect output
 to the video console.
 
 Driver writers can replace functions here in order to hook into
@@ -1581,11 +1705,11 @@ the firmware. The general rules are:
 * On entry to the function, the CPU will be in supervisor mode
 * On entry to the function, the SP will reference the supervisor stack
 
-Not all of these functions will be used by the firmware - some are 
+Not all of these functions will be used by the firmware - some are
 designated as for program use (for example, a kernel may use them
 to provide its own hooks).
 
-User code **must not** call these functions directly - they 
+User code **must not** call these functions directly - they
 must be accessed through the public TRAP functions!
 
 | Address | Function                                                                                          |
@@ -1594,7 +1718,7 @@ must be accessed through the public TRAP functions!
 | 0x424   | FW_PRINTLN - Print SZ to the default console, followed by CRLF                                    |
 | 0x428   | FW_PRINTCHAR - Print a character to the default console                                           |
 | 0x42C   | FW_HALT - Disable interrupts and halt                                                             |
-| 0x430   | FW_SENDCHAR - Send a character via the default UART                                               | 
+| 0x430   | FW_SENDCHAR - Send a character via the default UART                                               |
 | 0x434   | FW_RECVCHAR - Receive a character via the default UART                                            |
 | 0x438   | FW_CLRSCR - Clear the default console (where supported)                                           |
 | 0x43C   | FW_MOVEXY - Move cursor to (X,Y) (see note 1)                                                     |
@@ -1625,7 +1749,7 @@ must be accessed through the public TRAP functions!
 **Note 1**: FW_GOTOXY takes the coordinates to move to from D1.W. The high
 byte is the X coordinate (Column) and the low byte is the Y coordinate (Row).
 
-**Note 2**: The SD, SPI and ATA routines arguments, modifies and returns are the same as for the TRAPs they 
+**Note 2**: The SD, SPI and ATA routines arguments, modifies and returns are the same as for the TRAPs they
 underlie unless otherwise noted. See section 1 for details.
 
 Arguments, modifies and other information for these functions are the same
@@ -1633,7 +1757,7 @@ as for the TRAP functions they implement. If replacing them, you **must**
 adhere to the same interface. The reference implementations can be found in
 `bootstrap.S`, `trap14.S` and `sdcard/syscalls_asm.S`.
 
-**Note** that all of these are allowed to block! 
+**Note** that all of these are allowed to block!
 
 ## 2.4. Video IO Data Area (VDA)
 
@@ -1654,7 +1778,7 @@ variables and data required by a video driver.
 **Size**: 0x40 (64 bytes)
 
 This block of 16 longs is reserved for publicly-available data about installed
-video systems. It may be populated by the firmware during detection, or by 
+video systems. It may be populated by the firmware during detection, or by
 video drivers at load time.
 
 | Address | Size | Description                                               |
@@ -1699,7 +1823,7 @@ and layout of this area may change without notice.
 **End Address**: 0xE00103
 **Size**: 3 bytes
 
-The longword at the top of the ROM exception table determines the 
+The longword at the top of the ROM exception table determines the
 firmware version and some information about its (static) version-related
 requirements and capabilities.
 
@@ -1723,7 +1847,7 @@ bit 15    : Snapshot version
 The system provides support for up to 16 character devices which are
 accessed through the relevant routines in TRAP 14.
 
-Any UART devices detected during firmware initialization will 
+Any UART devices detected during firmware initialization will
 automatically have such devices created for them. The remainder are
 available for user use.
 
@@ -1760,12 +1884,12 @@ The device types currently defined by the system are:
 
 ## 3.3. Device function calling conventions
 
-> **Note** It is legal to call device functions directly from user codes. They 
+> **Note** It is legal to call device functions directly from user codes. They
 should be designed accordingly. The system TRAPs to call them are
 provided for convenience only, and device functions should not assume
 the CPU will be in supervisor mode when they are called.
 
-All the device functions receive a pointer to their `CHAR_DEVICE` 
+All the device functions receive a pointer to their `CHAR_DEVICE`
 structure in A0. `D0` is used for the return value where applicable.
 
 The calling convention (other than the pointer to the device structure)

@@ -8,7 +8,8 @@ and a variety of boot loaders to enable flexible loading of code into the
 machine at boot time.
 
 Drivers are included here for the MC68901 (Revision 1.x only), MC68681 
-(and XR68C681), V9958, Xark's Xosera, MarkM's IDE (ATA) interface, and 
+(and XR68C681), V9958, Xark's Xosera, MarkM's IDE (ATA) interface, the 
+WD37C65-based floppy interface (build with `WITH_FDC=true`), and 
 the built-in (bit-banged) SPI and SD Card interfaces, and (where 
 appropriate) a firmware interface to enable easy use is also provided 
 (see InterfaceReference.md).
