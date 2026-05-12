@@ -1371,8 +1371,10 @@ FD_XFER:
                 lsl.w   #2,D0
                 lea.l   FCD_TBL,A1
                 move.l  0(A1,D0.w),A1       ; A1 = ROM config pointer
-                move.b  FCD_NUMSEC(A1),D3   ; D3 = sectors/track
-                move.b  FCD_NUMHD(A1),D4    ; D4 = heads
+                moveq.l #0,D3
+                move.b  FCD_NUMSEC(A1),D3   ; D3 = sectors/track (zero-extended)
+                moveq.l #0,D4
+                move.b  FCD_NUMHD(A1),D4    ; D4 = heads (zero-extended)
 
 .xfer_sector:
                 tst.l   D6
@@ -1383,16 +1385,15 @@ FD_XFER:
                 ; head_tmp = LBA / secs
                 ; C = head_tmp / heads
                 ; H = head_tmp % heads
-                move.l  D1,D0               ; D0 = LBA
-                ext.l   D3
+                move.l  D1,D0               ; D0 = LBA (32-bit dividend)
                 divu.w  D3,D0               ; D0.hi = LBA%secs, D0.lo = LBA/secs
                 move.w  D0,D2               ; D2 = LBA/secs (head_tmp)
                 swap    D0
                 move.b  D0,FCD_R_PARAM      ; R = LBA%secs low byte (0-based so far)
                 add.b   #1,FCD_R_PARAM      ; +1 -> 1-based
 
-                move.w  D2,D0               ; D0 = head_tmp
-                ext.l   D4
+                moveq.l #0,D0
+                move.w  D2,D0               ; D0 = head_tmp (zero-extended, clear div garbage)
                 divu.w  D4,D0               ; D0.hi = head_tmp%heads, D0.lo = head_tmp/heads
                 move.w  D0,D2               ; D2 = cylinder
                 swap    D0

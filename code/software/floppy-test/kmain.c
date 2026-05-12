@@ -25,6 +25,11 @@ void kmain(void) {
 
     printf("=== Floppy Phase 1 ===\r\n\r\n");
 
+    printf("*** WARNING: THIS CODE WILL WRITE TO THE FLOPPY. DO NOT USE WITH A DISK YOU WANT TO KEEP ***\r\n\r\n");
+    printf("Press any key to continue...\r\n");
+    inputchar();
+    printf("\r\n");
+
     printf("Step 1: FD_init(drive=0)...\r\n");
     uint32_t rc = FD_init(0U, &dev);
     printf("  rc=$%08lX  dev.flags=$%02X (fdcrdy=%d)\r\n",

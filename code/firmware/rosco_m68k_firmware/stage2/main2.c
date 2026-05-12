@@ -1,9 +1,9 @@
 /*
  *------------------------------------------------------------
- *                                  ___ ___ _   
- *  ___ ___ ___ ___ ___       _____|  _| . | |_ 
+ *                                  ___ ___ _
+ *  ___ ___ ___ ___ ___       _____|  _| . | |_
  * |  _| . |_ -|  _| . |     |     | . | . | '_|
- * |_| |___|___|___|___|_____|_|_|_|___|___|_,_| 
+ * |_| |___|___|___|___|_____|_|_|_|___|___|_,_|
  *                     |_____|       firmware v2
  * ------------------------------------------------------------
  * Copyright (c)2019-2021 Ross Bamford and contributors
@@ -76,7 +76,7 @@ void linit() {
 //
 // Otherwise, it means an 'exit' or bad menu item was selected.
 //
-// This also initializes the console as a side-effect, which kinda sucks... 
+// This also initializes the console as a side-effect, which kinda sucks...
 //
 typedef enum _boot_menu_res {
     RES_NONE        = 0,    // use default program loader (or load error)
@@ -92,7 +92,7 @@ static boot_menu_res handle_boot_menu(void) {
     if (load_menu_result > 0) {
         int n_items;
 
-        bool menu_result = parse_menu((char*)kernel_load_ptr, load_menu_result, MAX_MENU_ITEMS, menu_items, &n_items);        
+        bool menu_result = parse_menu((char*)kernel_load_ptr, load_menu_result, MAX_MENU_ITEMS, menu_items, &n_items);
 
         if (menu_result) {
             for (int i = 0; i < n_items; i++) {
@@ -147,7 +147,7 @@ static boot_menu_res handle_boot_menu(void) {
 #endif
 
 noreturn void lmain() {
-    // Always do this for backwards compatibility    
+    // Always do this for backwards compatibility
     ENABLE_RECV();
 
 #if defined(XOSERA_API_MINIMAL)
@@ -169,13 +169,13 @@ noreturn void lmain() {
             goto start_uart_loader;
 #endif
 #endif
-#ifdef WITH_SPLASH        
+#ifdef WITH_SPLASH
     }
 #endif
 #endif
 
 #ifndef MAME_FIRMWARE
-#  if (defined SDFAT_LOADER) || (defined IDE_LOADER) || (defined FDC_PROBE)
+#  if (defined SDFAT_LOADER) || (defined IDE_LOADER) || (defined FDC_LOADER)
     FW_PRINT_C("Searching for boot media...\r\n");
 #  endif
 
@@ -184,13 +184,15 @@ noreturn void lmain() {
         goto have_kernel;
     }
 #  endif
+#  ifdef FDC_LOADER
+    if (fdc_load_kernel()) {
+        goto have_kernel;
+    }
+#  endif
 #  ifdef IDE_LOADER
     if (ide_load_kernel()) {
         goto have_kernel;
     }
-#  endif
-#  ifdef FDC_PROBE
-    fdc_probe_report();
 #  endif
 #endif
 #  ifdef ROMFS_LOADER
@@ -199,7 +201,7 @@ noreturn void lmain() {
     }
 #  endif
 #ifndef MAME_FIRMWARE
-#  if (defined SDFAT_LOADER) || (defined IDE_LOADER) || (defined FDC_PROBE)
+#  if (defined SDFAT_LOADER) || (defined IDE_LOADER) || (defined FDC_LOADER) || (defined ROMFS_LOADER)
     FW_PRINT_C("No bootable media found\r\n");
 #  endif
 #  ifdef KERMIT_LOADER
@@ -216,7 +218,7 @@ start_uart_loader:
 
     // Wait a short while for the user's terminal to come back...
     BUSYWAIT_C(400000);
-    
+
     FW_PRINT_C("Kernel received okay; Starting...\r\n");
 #  else
     FW_PRINT_C("No bootable media found & no Kermit support; Halting...\r\n");

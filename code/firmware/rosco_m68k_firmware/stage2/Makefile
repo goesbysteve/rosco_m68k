@@ -1,5 +1,5 @@
 # Make rosco_m68k ROM stage2
-# 
+#
 # Copyright (c)2020-2024 Ross Bamford
 # See LICENSE
 
@@ -124,6 +124,7 @@ clean_boot_menu:
 	$(MAKE) -C boot_menu clean
 clean: clean_boot_menu
 else
-clean: 
+clean:
 endif
 	$(RM) $(OBJECTS) $(ELF) $(BINARY) $(BINARY_ZIP) $(BINARY_ZIP_OBJ) $(MAP)
+	$(RM) fdc/*.o idehdd/*.o
